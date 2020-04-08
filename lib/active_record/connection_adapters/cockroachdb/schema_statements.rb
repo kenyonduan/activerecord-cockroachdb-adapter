@@ -6,8 +6,12 @@ module ActiveRecord
 
         DEFAULT_PRIMARY_KEY = "rowid"
 
+        # copied from ActiveRecord::PostgreSQL::SchemaStatements
+        #
+        # - removed the comment part from the CREATE INDEX statement
         def add_index(table_name, column_name, options = {})
-          super
+          index_name, index_type, index_columns_and_opclasses, index_options, index_algorithm, index_using, _comment = add_index_options(table_name, column_name, options)
+          execute("CREATE #{index_type} INDEX #{index_algorithm} #{quote_column_name(index_name)} ON #{quote_table_name(table_name)} #{index_using} (#{index_columns_and_opclasses})#{index_options}")
         rescue ActiveRecord::StatementInvalid => error
           if debugging? && error.cause.class == PG::FeatureNotSupported
             warn "#{error}\n\nThis error will be ignored and the index will not be created.\n\n"
