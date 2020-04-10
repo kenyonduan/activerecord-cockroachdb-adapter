@@ -194,6 +194,7 @@ module ActiveRecord
         end
       end
 
+      ActiveRecord::Type.register(:jsonb, OID::Jsonb, adapter: :cockroachdb)
 
       # end private
     end
