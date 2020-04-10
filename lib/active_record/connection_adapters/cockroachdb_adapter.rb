@@ -56,6 +56,10 @@ module ActiveRecord
         true
       end
 
+      def supports_savepoints?
+        false
+      end
+
       def supports_ddl_transactions?
         false
       end
@@ -119,75 +123,76 @@ module ActiveRecord
       def max_identifier_length
         63
       end
+
       alias index_name_length max_identifier_length
       alias table_alias_length max_identifier_length
 
       private
 
-        def initialize_type_map(m = type_map)
-          super(m)
-          # NOTE(joey): PostgreSQL intervals have a precision.
-          # CockroachDB intervals do not, so overide the type
-          # definition. Returning a ArgumentError may not be correct.
-          # This needs to be tested.
-          m.register_type "interval" do |_, _, sql_type|
-            precision = extract_precision(sql_type)
-            if precision
-              raise(ArgumentError, "CockroachDB does not support precision on intervals, but got precision: #{precision}")
-            end
-            OID::SpecializedString.new(:interval, precision: precision)
+      def initialize_type_map(m = type_map)
+        super(m)
+        # NOTE(joey): PostgreSQL intervals have a precision.
+        # CockroachDB intervals do not, so overide the type
+        # definition. Returning a ArgumentError may not be correct.
+        # This needs to be tested.
+        m.register_type "interval" do |_, _, sql_type|
+          precision = extract_precision(sql_type)
+          if precision
+            raise(ArgumentError, "CockroachDB does not support precision on intervals, but got precision: #{precision}")
+          end
+          OID::SpecializedString.new(:interval, precision: precision)
+        end
+      end
+
+      # Configures the encoding, verbosity, schema search path, and time zone of the connection.
+      # This is called by #connect and should not be called manually.
+      #
+      # NOTE(joey): This was cradled from postgresql_adapter.rb. This
+      # was due to needing to override configuration statements.
+      def configure_connection
+        if @config[:encoding]
+          @connection.set_client_encoding(@config[:encoding])
+        end
+        self.client_min_messages = @config[:min_messages] || "warning"
+        self.schema_search_path = @config[:schema_search_path] || @config[:schema_order]
+
+        # Use standard-conforming strings so we don't have to do the E'...' dance.
+        set_standard_conforming_strings
+
+        variables = @config.fetch(:variables, {}).stringify_keys
+
+        # If using Active Record's time zone support configure the connection to return
+        # TIMESTAMP WITH ZONE types in UTC.
+        unless variables["timezone"]
+          if ActiveRecord::Base.default_timezone == :utc
+            variables["timezone"] = "UTC"
+          elsif @local_tz
+            variables["timezone"] = @local_tz
           end
         end
 
-        # Configures the encoding, verbosity, schema search path, and time zone of the connection.
-        # This is called by #connect and should not be called manually.
-        #
-        # NOTE(joey): This was cradled from postgresql_adapter.rb. This
-        # was due to needing to override configuration statements.
-        def configure_connection
-          if @config[:encoding]
-            @connection.set_client_encoding(@config[:encoding])
-          end
-          self.client_min_messages = @config[:min_messages] || "warning"
-          self.schema_search_path = @config[:schema_search_path] || @config[:schema_order]
+        # NOTE(joey): This is a workaround as CockroachDB 1.1.x
+        # supports SET TIME ZONE <...> and SET "time zone" = <...> but
+        # not SET timezone = <...>.
+        if variables.key?("timezone")
+          tz = variables.delete("timezone")
+          execute("SET TIME ZONE #{quote(tz)}", "SCHEMA")
+        end
 
-          # Use standard-conforming strings so we don't have to do the E'...' dance.
-          set_standard_conforming_strings
+        # SET statements from :variables config hash
+        # https://www.postgresql.org/docs/current/static/sql-set.html
+        variables.map do |k, v|
+          if v == ":default" || v == :default
+            # Sets the value to the global or compile default
 
-          variables = @config.fetch(:variables, {}).stringify_keys
-
-          # If using Active Record's time zone support configure the connection to return
-          # TIMESTAMP WITH ZONE types in UTC.
-          unless variables["timezone"]
-            if ActiveRecord::Base.default_timezone == :utc
-              variables["timezone"] = "UTC"
-            elsif @local_tz
-              variables["timezone"] = @local_tz
-            end
-          end
-
-          # NOTE(joey): This is a workaround as CockroachDB 1.1.x
-          # supports SET TIME ZONE <...> and SET "time zone" = <...> but
-          # not SET timezone = <...>.
-          if variables.key?("timezone")
-            tz = variables.delete("timezone")
-            execute("SET TIME ZONE #{quote(tz)}", "SCHEMA")
-          end
-
-          # SET statements from :variables config hash
-          # https://www.postgresql.org/docs/current/static/sql-set.html
-          variables.map do |k, v|
-            if v == ":default" || v == :default
-              # Sets the value to the global or compile default
-
-              # NOTE(joey): I am not sure if simply commenting this out
-              # is technically correct.
-              # execute("SET #{k} = DEFAULT", "SCHEMA")
-            elsif !v.nil?
-              execute("SET SESSION #{k} = #{quote(v)}", "SCHEMA")
-            end
+            # NOTE(joey): I am not sure if simply commenting this out
+            # is technically correct.
+            # execute("SET #{k} = DEFAULT", "SCHEMA")
+          elsif !v.nil?
+            execute("SET SESSION #{k} = #{quote(v)}", "SCHEMA")
           end
         end
+      end
 
 
       # end private
