@@ -24,6 +24,12 @@ module ActiveRecord
 
       conn = PG.connect(conn_params)
       ConnectionAdapters::CockroachDBAdapter.new(conn, logger, conn_params, config)
+    rescue ::PG::Error => error
+      if error.message.include?(conn_params[:dbname])
+        raise ActiveRecord::NoDatabaseError
+      else
+        raise
+      end
     end
   end
 end
