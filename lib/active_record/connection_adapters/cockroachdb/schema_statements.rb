@@ -4,8 +4,6 @@ module ActiveRecord
       module SchemaStatements
         include ActiveRecord::ConnectionAdapters::PostgreSQL::SchemaStatements
 
-        DEFAULT_PRIMARY_KEY = "rowid"
-
         # copied from ActiveRecord::PostgreSQL::SchemaStatements
         #
         # - removed the comment part from the CREATE INDEX statement
@@ -31,7 +29,7 @@ module ActiveRecord
         def primary_key(table_name)
           pk = super
 
-          if pk == DEFAULT_PRIMARY_KEY
+          if pk == CockroachDBAdapter::DEFAULT_PRIMARY_KEY
             nil
           else
             pk

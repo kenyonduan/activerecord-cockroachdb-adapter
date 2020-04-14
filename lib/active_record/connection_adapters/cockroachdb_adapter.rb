@@ -5,6 +5,8 @@ require "active_record/connection_adapters/cockroachdb/transaction_manager"
 require "active_record/connection_adapters/cockroachdb/column"
 require "active_record/connection_adapters/cockroachdb/database_statements"
 require "active_record/connection_adapters/cockroachdb/quoting"
+require "active_record/connection_adapters/cockroachdb/type"
+require "active_record/connection_adapters/cockroachdb/attribute_methods"
 
 module ActiveRecord
   module ConnectionHandling
@@ -38,6 +40,7 @@ module ActiveRecord
   module ConnectionAdapters
     class CockroachDBAdapter < PostgreSQLAdapter
       ADAPTER_NAME = "CockroachDB".freeze
+      DEFAULT_PRIMARY_KEY = "rowid"
 
       include CockroachDB::SchemaStatements
       include CockroachDB::ReferentialIntegrity
@@ -199,26 +202,6 @@ module ActiveRecord
           end
         end
       end
-
-      ActiveRecord::Type.add_modifier({ array: true }, OID::Array, adapter: :cockroachdb)
-      ActiveRecord::Type.add_modifier({ range: true }, OID::Range, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:bit, OID::Bit, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:bit_varying, OID::BitVarying, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:binary, OID::Bytea, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:cidr, OID::Cidr, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:date, OID::Date, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:datetime, OID::DateTime, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:decimal, OID::Decimal, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:enum, OID::Enum, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:hstore, OID::Hstore, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:inet, OID::Inet, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:jsonb, OID::Jsonb, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:money, OID::Money, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:point, OID::Point, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:legacy_point, OID::LegacyPoint, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:uuid, OID::Uuid, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:vector, OID::Vector, adapter: :cockroachdb)
-      ActiveRecord::Type.register(:xml, OID::Xml, adapter: :cockroachdb)
 
       # end private
     end
