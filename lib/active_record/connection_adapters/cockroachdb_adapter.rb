@@ -153,6 +153,30 @@ module ActiveRecord
         end
       end
 
+      # Override #extract_value_from_default to support default value for the following types:
+      # 1) Numeric
+      # 2) TIMESTAMP
+      # 3) ARRAY
+      # 4) JSONB
+      def extract_value_from_default(default)
+        super || case default
+                   # Numeric(https://github.com/cockroachdb/activerecord-cockroachdb-adapter/pull/16)
+                 when /\A\(?(-?\d+(\.\d*)?)\)?(:::?(INT(4,8,16,32,64)?|DECIMAL))?\z/
+                   $1
+                   # Datetime(https://github.com/cockroachdb/activerecord-cockroachdb-adapter/pull/62)
+                 when /\A'(.*)(\+00:00)'\z/
+                   Time.parse($1).to_s
+                   # Array(ARRAY[] or ARRAY['a':::STRING])
+                 when /\AARRAY\[(.*)\]\z/
+                   "{#{$1.gsub(/:::?\w*/, '').gsub(/'|\s/, "")}}"
+                   # Normal value('[]' or '{}' or '{"foo": "bar"}')
+                 when /\A'(.*)'\z/
+                   $1
+                 else
+                   nil
+                 end
+      end
+
       # Configures the encoding, verbosity, schema search path, and time zone of the connection.
       # This is called by #connect and should not be called manually.
       #
