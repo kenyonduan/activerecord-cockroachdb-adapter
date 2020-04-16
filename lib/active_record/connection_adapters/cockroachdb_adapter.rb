@@ -165,7 +165,7 @@ module ActiveRecord
                    $1
                    # Datetime(https://github.com/cockroachdb/activerecord-cockroachdb-adapter/pull/62)
                  when /\A'(.*)(\+00:00)'\z/
-                   Time.parse($1).to_s
+                   $1
                    # Array(ARRAY[] or ARRAY['a':::STRING])
                  when /\AARRAY\[(.*)\]\z/
                    "{#{$1.gsub(/:::?\w*/, '').gsub(/'|\s/, "")}}"
