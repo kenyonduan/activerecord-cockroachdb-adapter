@@ -153,30 +153,6 @@ module ActiveRecord
         end
       end
 
-      # Override #extract_value_from_default to support default value for the following types:
-      # 1) Numeric
-      # 2) TIMESTAMP
-      # 3) ARRAY
-      # 4) JSONB
-      def extract_value_from_default(default)
-        super || case default
-                   # Numeric(https://github.com/cockroachdb/activerecord-cockroachdb-adapter/pull/16)
-                 when /\A\(?(-?\d+(\.\d*)?)\)?(:::?(INT(4,8,16,32,64)?|DECIMAL))?\z/
-                   $1
-                   # Datetime(https://github.com/cockroachdb/activerecord-cockroachdb-adapter/pull/62)
-                 when /\A'(.*)(\+00:00)'\z/
-                   $1
-                   # Array(ARRAY[] or ARRAY['a':::STRING])
-                 when /\AARRAY\[(.*)\]\z/
-                   "{#{$1.gsub(/:::?\w*/, '').gsub(/'|\s/, "")}}"
-                   # Normal value('[]' or '{}' or '{"foo": "bar"}')
-                 when /\A'(.*)'\z/
-                   $1
-                 else
-                   nil
-                 end
-      end
-
       # Configures the encoding, verbosity, schema search path, and time zone of the connection.
       # This is called by #connect and should not be called manually.
       #
@@ -227,6 +203,49 @@ module ActiveRecord
         end
       end
 
+      # Override #extract_value_from_default to support default value for the following types:
+      # 1) String
+      # 1) Numeric
+      # 2) TIMESTAMP
+      # 3) ARRAY
+      # 4) JSONB
+      def extract_value_from_default(default)
+        super || case default
+                   # Escaped strings start with an e followed by the string in quotes (e'…')
+                   #
+                   # Both PostgreSQL and CockroachDB use C-style string escapes under the
+                   # covers. PostgreSQL obscures this for us and unescapes the strings, but
+                   # CockroachDB does not. Here we'll use Ruby to unescape the string.
+                   # See https://github.com/cockroachdb/cockroach/issues/47497 and
+                   # https://www.postgresql.org/docs/9.2/sql-syntax-lexical.html#SQL-SYNTAX-STRINGS-ESCAPE.
+                 when /\A[\(B]?e'(.*)'.*::"?([\w. ]+)"?(?:\[\])?\z/m
+                   # String#undump doesn't account for escaped single quote characters
+                   "\"#{$1}\"".undump.gsub("\\'".freeze, "'".freeze)
+                   # Numeric(https://github.com/cockroachdb/activerecord-cockroachdb-adapter/pull/16)
+                 when /\A\(?(-?\d+(\.\d*)?)\)?(:::?(INT(4,8,16,32,64)?|DECIMAL))?\z/
+                   $1
+                   # This method exists to extract the correct time and date defaults for a
+                   # couple of reasons.
+                   # 1) There's a bug in CockroachDB where the date type is missing from
+                   # the column info query.
+                   # https://github.com/cockroachdb/cockroach/issues/47285
+                   # https://github.com/cockroachdb/activerecord-cockroachdb-adapter/pull/62
+                   # 2) PostgreSQL's timestamp without time zone type maps to CockroachDB's
+                   # TIMESTAMP type. TIMESTAMP includes a UTC time zone while timestamp
+                   # without time zone doesn't.
+                   # https://www.cockroachlabs.com/docs/v19.2/timestamp.html#variants
+                 when /\A'(.*)(\+00:00)'\z/
+                   $1
+                   # Array(ARRAY[] or ARRAY['a':::STRING])
+                 when /\AARRAY\[(.*)\]\z/
+                   "{#{$1.gsub(/:::?\w*/, '').gsub(/'|\s/, "")}}"
+                   # Normal value('[]' or '{}' or '{"foo": "bar"}')
+                 when /\A'(.*)'\z/
+                   $1
+                 else
+                   nil
+                 end
+      end
       # end private
     end
   end
