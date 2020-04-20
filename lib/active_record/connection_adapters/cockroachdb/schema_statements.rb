@@ -36,7 +36,6 @@ module ActiveRecord
           end
         end
 
-<<<<<<< HEAD
         # copied from ActiveRecord::PostgreSQL::SchemaStatements
         #
         # - removed the algortithm part from the DROP INDEX statement
@@ -57,13 +56,13 @@ module ActiveRecord
 
           index_to_remove = PostgreSQL::Name.new(table.schema, index_name_for_remove(table.to_s, options))
           execute "DROP INDEX #{quote_table_name(index_to_remove)} CASCADE"
-=======
+        end
+
         # CockroachDB uses unique_rowid() for primary keys, not sequences. It's
         # possible to force a table to use sequences, but since it's not the
         # default behavior we'll always return nil for default_sequence_name.
         def default_sequence_name(table_name, pk = "id")
           nil
->>>>>>> 492fa2bc386cc6301a3f8c68f8dfb2768cbbb85b
         end
       end
     end
